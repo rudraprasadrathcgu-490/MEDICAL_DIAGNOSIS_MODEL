@@ -1,9 +1,13 @@
 🩺 AI Health Risk Prediction System
+
 An end-to-end Machine Learning web application built using Streamlit that allows users to upload a medical dataset, train a model, analyze patient health data, and generate a downloadable PDF health report with risk visualization.
 
 🚀 Live Features
+
 📂 Upload medical dataset (CSV format)
+
 🧹 Automatic duplicate removal
+
 🔢 Automatic missing value handling
 🔄 One-hot encoding for categorical features
 🤖 Random Forest model training
