@@ -59,4 +59,4 @@ An end-to-end Machine Learning web application built using **Streamlit** that al
 
 ---
 
-## 📁 Project Structure
+## ALWAYS READY TO LEARN 
