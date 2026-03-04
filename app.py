@@ -1,128 +1,165 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import seaborn as sns
 import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
+import seaborn as sns
+import pickle
+
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import confusion_matrix, accuracy_score, recall_score, f1_score
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import SVC
+from sklearn.metrics import (
+    confusion_matrix,
+    accuracy_score,
+    recall_score,
+    f1_score,
+    roc_curve,
+    auc
+)
 
-# --- Page Config ---
-st.set_page_config(page_title="Medical Diagnosis AI", layout="wide")
-st.title("🩺 Medical Diagnosis Prediction Dashboard")
-st.markdown("Upload your medical dataset to train models and evaluate performance.")
+# ---------------- CONFIG ----------------
+st.set_page_config(page_title="AI Medical Diagnosis", layout="wide")
+st.title("🩺 AI-Powered Medical Diagnosis System")
+st.markdown("Upload dataset → Train models → Compare → Predict")
 
-# --- Sidebar: File Upload & Controls ---
-st.sidebar.header("Settings")
-uploaded_file = st.sidebar.file_uploader("Upload your CSV file", type=["csv"])
+# ---------------- SIDEBAR ----------------
+st.sidebar.header("⚙ Settings")
+uploaded_file = st.sidebar.file_uploader("Upload CSV", type=["csv"])
 remove_outliers = st.sidebar.checkbox("Remove Outliers (IQR)", value=True)
 
-if uploaded_file is not None:
-    # --- 1. Load & Basic Cleaning ---
+if uploaded_file:
+
     df = pd.read_csv(uploaded_file)
     df.drop_duplicates(inplace=True)
-    
-    # Fill missing values
-    if 'Cholesterol' in df.columns:
-        df['Cholesterol'] = df['Cholesterol'].fillna(df['Cholesterol'].mean())
-    
-    # Outlier removal
-    if remove_outliers:
-        Q1 = df.quantile(numeric_only=True, q=0.25)
-        Q3 = df.quantile(numeric_only=True, q=0.75)
-        IQR = Q3 - Q1
-        df_cleaned = df[~((df.select_dtypes(include=np.number) < (Q1 - 1.5 * IQR)) |
-                          (df.select_dtypes(include=np.number) > (Q3 + 1.5 * IQR))).any(axis=1)]
-        if df_cleaned['Disease'].nunique() >= 2:
-            df = df_cleaned
-            st.sidebar.success("Outliers removed successfully.")
-        else:
-            st.sidebar.warning("Outlier removal skipped: would delete an entire class.")
 
-    # One-Hot Encoding
+    # Fill missing numeric values
+    for col in df.select_dtypes(include=np.number).columns:
+        df[col].fillna(df[col].mean(), inplace=True)
+
+    # ---------------- OUTLIER REMOVAL ----------------
+    if remove_outliers:
+        numeric = df.select_dtypes(include=np.number)
+        Q1 = numeric.quantile(0.25)
+        Q3 = numeric.quantile(0.75)
+        IQR = Q3 - Q1
+
+        mask = ~((numeric < (Q1 - 1.5 * IQR)) |
+                 (numeric > (Q3 + 1.5 * IQR))).any(axis=1)
+
+        if "Disease" in df.columns and df[mask]["Disease"].nunique() >= 2:
+            df = df[mask]
+            st.sidebar.success("Outliers Removed")
+
+    if "Disease" not in df.columns:
+        st.error("Dataset must contain 'Disease' column.")
+        st.stop()
+
+    # Encoding
     df = pd.get_dummies(df, drop_first=True)
 
-    # --- 2. Training Logic ---
-    if 'Disease' in df.columns:
-        X = df.drop('Disease', axis=1)
-        y = df['Disease']
+    X = df.drop("Disease", axis=1)
+    y = df["Disease"]
 
-        # Splitting (Stratified)
-        X_train_raw, X_test_raw, y_train, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=42, stratify=y
+    # Split
+    X_train_raw, X_test_raw, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42, stratify=y
+    )
+
+    # Scaling
+    scaler = StandardScaler()
+    X_train = scaler.fit_transform(X_train_raw)
+    X_test = scaler.transform(X_test_raw)
+
+    # ---------------- MODELS ----------------
+    models = {
+        "Logistic Regression": LogisticRegression(max_iter=200),
+        "Random Forest": RandomForestClassifier(n_estimators=200),
+        "SVM": SVC(probability=True)
+    }
+
+    results = []
+
+    for name, model in models.items():
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+
+        acc = accuracy_score(y_test, y_pred)
+        rec = recall_score(y_test, y_pred, average="weighted")
+        f1 = f1_score(y_test, y_pred, average="weighted")
+
+        cv_score = cross_val_score(model, X_train, y_train, cv=5).mean()
+
+        results.append([name, acc, rec, f1, cv_score])
+
+    results_df = pd.DataFrame(
+        results,
+        columns=["Model", "Accuracy", "Recall", "F1 Score", "CV Score"]
+    )
+
+    # ---------------- DASHBOARD ----------------
+    st.subheader("📊 Model Comparison")
+    st.dataframe(results_df.style.format({
+        "Accuracy": "{:.2%}",
+        "Recall": "{:.2%}",
+        "F1 Score": "{:.2%}",
+        "CV Score": "{:.2%}"
+    }))
+
+    # Select Best Model
+    best_model_name = results_df.sort_values(
+        by="Accuracy", ascending=False
+    )["Model"].values[0]
+
+    best_model = models[best_model_name]
+    best_model.fit(X_train, y_train)
+
+    st.success(f"🏆 Best Model: {best_model_name}")
+
+    # ---------------- ROC CURVE ----------------
+    if len(y.unique()) == 2:
+        st.subheader("📈 ROC Curve")
+        y_probs = best_model.predict_proba(X_test)[:, 1]
+        fpr, tpr, _ = roc_curve(y_test, y_probs)
+        roc_auc = auc(fpr, tpr)
+
+        fig, ax = plt.subplots()
+        ax.plot(fpr, tpr)
+        ax.plot([0, 1], [0, 1])
+        ax.set_title(f"ROC Curve (AUC = {roc_auc:.2f})")
+        st.pyplot(fig)
+
+    # ---------------- CONFUSION MATRIX ----------------
+    st.subheader("📉 Confusion Matrix")
+    y_pred = best_model.predict(X_test)
+    fig2, ax2 = plt.subplots()
+    sns.heatmap(confusion_matrix(y_test, y_pred),
+                annot=True,
+                fmt="d",
+                cmap="Blues",
+                ax=ax2)
+    st.pyplot(fig2)
+
+    # ---------------- FEATURE IMPORTANCE ----------------
+    if best_model_name == "Random Forest":
+        st.subheader("🔍 Top 10 Important Features")
+        importances = pd.Series(
+            best_model.feature_importances_,
+            index=X.columns
         )
+        fig3, ax3 = plt.subplots()
+        importances.nlargest(10).sort_values().plot(kind="barh", ax=ax3)
+        st.pyplot(fig3)
 
-        # Scaling
-        scaler = StandardScaler()
-        X_train = scaler.fit_transform(X_train_raw)
-        X_test = scaler.transform(X_test_raw)
+    # ---------------- DOWNLOAD MODEL ----------------
+    st.subheader("⬇ Download Trained Model")
+    model_data = pickle.dumps(best_model)
+    st.download_button(
+        "Download Model (.pkl)",
+        model_data,
+        file_name="medical_ai_model.pkl"
+    )
 
-        # Model Training (Random Forest)
-        rf = RandomForestClassifier(n_estimators=100, random_state=42)
-        rf.fit(X_train, y_train)
-        y_pred = rf.predict(X_test)
-
-        # --- 3. Dashboard Metrics ---
-        st.subheader("1. Model Performance")
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Accuracy", f"{accuracy_score(y_test, y_pred):.2%}")
-        m2.metric("Recall (Sensitivity)", f"{recall_score(y_test, y_pred):.2%}")
-        m3.metric("F1 Score", f"{f1_score(y_test, y_pred):.2%}")
-        m4.metric("Samples", f"{len(df)}")
-
-        # Visuals
-        v_col1, v_col2 = st.columns(2)
-        with v_col1:
-            st.write("**Confusion Matrix**")
-            fig, ax = plt.subplots()
-            sns.heatmap(confusion_matrix(y_test, y_pred), annot=True, fmt='d', cmap='Blues', ax=ax)
-            st.pyplot(fig)
-        with v_col2:
-            st.write("**Feature Importance**")
-            importances = pd.Series(rf.feature_importances_, index=X.columns)
-            fig2, ax2 = plt.subplots()
-            importances.nlargest(10).plot(kind='barh', ax=ax2)
-            st.pyplot(fig2)
-
-        # --- 4. Interactive Prediction Tool ---
-        st.divider()
-        st.subheader("2. Patient Diagnosis Tool")
-        st.markdown("Enter patient details below. Binary fields (like Gender or Smoking) use dropdowns.")
-        
-        input_data = {}
-        # Create a grid for inputs
-        grid_cols = st.columns(4)
-        
-        for i, col_name in enumerate(X.columns):
-            with grid_cols[i % 4]:
-                # Check if it's a binary/dummy column
-                if X[col_name].dropna().isin([0, 1]).all():
-                    # Clean up the label for the UI
-                    clean_label = col_name.replace('_Yes', '').replace('_', ' ')
-                    choice = st.selectbox(clean_label, options=["No", "Yes"], index=0, key=col_name)
-                    input_data[col_name] = 1 if choice == "Yes" else 0
-                else:
-                    input_data[col_name] = st.number_input(
-                        col_name.replace('_', ' '), 
-                        value=float(X[col_name].mean()),
-                        key=col_name
-                    )
-
-        if st.button("Analyze Patient Data", type="primary"):
-            input_df = pd.DataFrame([input_data])
-            input_scaled = scaler.transform(input_df)
-            
-            prediction = rf.predict(input_scaled)[0]
-            probs = rf.predict_proba(input_scaled)[0]
-            confidence = probs[1] if prediction == 1 else probs[0]
-
-            if prediction == 1:
-                st.error(f"### 🚨 Result: High Risk (Confidence: {confidence:.2%})")
-            else:
-                st.success(f"### ✅ Result: Low Risk (Confidence: {confidence:.2%})")
-                
-    else:
-        st.error("Dataset must contain a 'Disease' column for target labels.")
 else:
-    st.info("👋 Welcome! Please upload your medical CSV file in the sidebar to start the analysis.")
+    st.info("Upload a dataset to begin.")
