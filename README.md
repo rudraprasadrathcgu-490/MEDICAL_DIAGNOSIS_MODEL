@@ -1,62 +1,48 @@
-# 🩺 AI-Powered Medical Diagnosis System
+🩺 AI Health Risk Prediction System
+An end-to-end Machine Learning web application built using Streamlit that allows users to upload a medical dataset, train a model, analyze patient health data, and generate a downloadable PDF health report with risk visualization.
 
-An end-to-end Machine Learning web application built using **Streamlit** that allows users to upload medical datasets, train multiple ML models, compare performance, visualize results, and download the best trained model.
+🚀 Live Features
+📂 Upload medical dataset (CSV format)
+🧹 Automatic duplicate removal
+🔢 Automatic missing value handling
+🔄 One-hot encoding for categorical features
+🤖 Random Forest model training
+📊 Model accuracy display
+🧪 Patient health input form
+📈 Risk meter (gauge chart visualization)
+📄 Downloadable PDF report (with chart included)
 
----
+🛠 Tech Stack
+Python
+Streamlit
+Pandas
+NumPy
+Scikit-learn
+Matplotlib
+FPDF
 
-## 🚀 Live Features
+📊 How It Works
+Upload a dataset containing a target column named Disease
+The app automatically:
+Cleans duplicate records
+Fills missing numeric values
+Encodes categorical features
+Scales input data
+Trains a Random Forest model
+User enters patient details
+System generates:
+Health Score (0–100)
+Risk Category
+Confidence Percentage
+Risk Meter Chart
+Download a professional PDF health report
 
-- 📂 Upload any medical dataset (CSV format)
-- 🧹 Automatic data cleaning & duplicate removal
-- 📊 Optional IQR-based outlier removal
-- 🔢 Automatic categorical encoding
-- 🤖 Multiple ML models:
-  - Logistic Regression
-  - Random Forest
-  - Support Vector Machine (SVM)
-- 📈 Model comparison dashboard
-- 🔁 5-Fold Cross Validation
-- 📉 Confusion Matrix visualization
-- 📈 ROC Curve (Binary classification)
-- 🔍 Feature Importance (Random Forest)
-- ⬇ Download trained model (.pkl)
+🎯 Goal
+To build a simple and interactive AI-based system for health risk assessment and medical data analysis.
 
----
+👨‍💻 Developer
+Rudra Prasad Rath
+B.Tech – Artificial Intelligence & Data Science
+CV Raman Global University
 
-## 🛠 Tech Stack
-
-- Python
-- Streamlit
-- Pandas
-- NumPy
-- Scikit-learn
-- Matplotlib
-- Seaborn
-- Pickle
-
----
-
-## 📊 How It Works
-
-1. Upload a medical dataset containing a target column named `Disease`
-2. App automatically:
-   - Cleans missing values
-   - Removes duplicates
-   - Performs encoding
-   - Scales features
-3. Trains 3 ML models
-4. Compares performance using:
-   - Accuracy
-   - Recall
-   - F1 Score
-   - Cross-validation score
-5. Selects the best-performing model
-6. Displays:
-   - Confusion Matrix
-   - ROC Curve (if binary)
-   - Feature Importance
-7. Allows model download
-
----
-
-## ALWAYS READY TO LEARN 
+⭐ ALWAYS READY TO LEARN
